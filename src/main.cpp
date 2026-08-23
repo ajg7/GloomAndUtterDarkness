@@ -1,26 +1,34 @@
+#include <array>
+#include <cstdlib>
+
 #include "raylib.h"
 
+#include "assets.h"
 #include "config.h"
 #include "frameRateMonitor.h"
+#include "hud.h"
+#include "input.h"
 #include "scopedDrawing.h"
+#include "scopedLayers.h"
+#include "scopedRenderTexture.h"
 #include "scopedTextureMode.h"
 #include "scopedWindow.h"
-#include "scopedRenderTexture.h"
-#include "scopedLayers.h"
-#include "animation.h"
-#include "player.h"
-#include "bullet.h"
-#include "zombie.h"
-#include "collision.h"
-#include <vector>
+#include "world.h"
 
-#include <cstdlib>
+namespace {
+
+// Framerate caps the MVP has to survive unchanged. F3 cycles them so the
+// "identical at 20 and at 300" claim can be checked without a rebuild.
+constexpr std::array<int, 4> FpsCaps{60, 20, 300, 0};
+
+} // namespace
 
 int main(void)
 {
     // Window
     const ScopedWindow window{Config::Window::Width, Config::Window::Height, "Gloom and Utter Darkness"};
     SetTargetFPS(Config::Window::TargetFPS);
+    SetExitKey(KEY_ESCAPE);
 
     // Virtual Canvas
     const ScopedRenderTexture target{Config::Virtual::Width, Config::Virtual::Height};
@@ -29,19 +37,35 @@ int main(void)
     // Background Layers
     const ScopedLayers backgroundLayers{Config::Assets::Backdrop::All};
 
-    Player player{Player::load(Vector2{Config::Virtual::WidthF * 0.5f - 64.0f, static_cast<float>(Config::World::GroundLineY) - 128.0f})};
-    Zombie zombie{Zombie::load(Vector2{
-        static_cast<float>(Config::World::ArenaMaxX - Config::Assets::Zombie::frameWidth),
-        static_cast<float>(Config::World::GroundLineY) - static_cast<float>(Config::Assets::Zombie::frameHeight)
-    })};
-    std::vector<Bullet> bullets;
+    // Sprite sheets, loaded once and shared by every entity that plays them.
+    const AssetStore assets{};
 
+    World world{};
+    InputLatch input{};
     FrameRateMonitor frameRateMonitor{};
+
+    bool debugOverlay{false};
+    std::size_t fpsCapIndex{0};
 
     // Game Loop
     while (not WindowShouldClose())
     {
+        input.pollFrame();
+
+        if (IsKeyPressed(KEY_F1)) debugOverlay = !debugOverlay;
+        if (IsKeyPressed(KEY_F2)) world.spawnStressTest(200);
+        if (IsKeyPressed(KEY_F3)) {
+            fpsCapIndex = (fpsCapIndex + 1) % FpsCaps.size();
+            SetTargetFPS(FpsCaps[fpsCapIndex]);
+        }
+
+        // Simulation, at a fixed rate independent of how fast we are drawing.
+        // Each step consumes its own input snapshot so a single keypress cannot
+        // be applied twice on a slow frame, or dropped on a fast one.
         const int simSteps = frameRateMonitor.update(GetFrameTime());
+        for (int step = 0; step < simSteps; ++step) {
+            world.step(input.takeStep(), FrameRateMonitor::SIM_DT);
+        }
 
         // -------------------------------------------------------------------------
         // Virtual Canvas Pass
@@ -51,43 +75,21 @@ int main(void)
             const ScopedTextureMode textureMode{target};
             ClearBackground(BLACK);
 
-            // Draw Background Layers
             for (const auto& layer : backgroundLayers) {
                 layer.draw();
             }
 
-            // Update Player, Zombie, and Bullets — once per simulated tick, not per render frame
-            for (int step = 0; step < simSteps; ++step) {
-                if (auto spawned = player.update(frameRateMonitor.SIM_DT)) bullets.push_back(*spawned);
+            world.draw(assets);
 
-                zombie.update(frameRateMonitor.SIM_DT, player.position.x);
-
-                for (auto& bullet : bullets) bullet.update(frameRateMonitor.SIM_DT);
-                
-                if (!zombie.dead) {
-                    const Rectangle target = zombie.expandedBounds(
-                        Config::Assets::Bullet::bulletWidth * 0.5f, Config::Assets::Bullet::bulletHeight * 0.5f
-                    );
-
-                    for (auto it = bullets.begin(); it != bullets.end();) {
-                        if (auto t = sweptAABB(it->prevPosition, it->position, target)) {
-                            zombie.takeHit();
-                            it = bullets.erase(it);
-                        } else ++it;
-                    }
-                }
+            if (debugOverlay) {
+                world.drawDebugShapes();
+                DrawLine(0, Config::World::GroundLineY, Config::Virtual::Width, Config::World::GroundLineY,
+                         Color{200, 60, 60, 140});
+                frameRateMonitor.drawFrameRateText();
+                Hud::drawDebug(world, static_cast<int>(FrameRateMonitor::SIM_HZ));
             }
 
-            // Draw Bullets, Zombie, and Player
-            for (const auto& bullet : bullets) {
-                DrawRectangle(static_cast<int>(bullet.position.x), static_cast<int>(bullet.position.y), Config::Assets::Bullet::bulletWidth, Config::Assets::Bullet::bulletHeight, YELLOW);
-            }
-            zombie.draw();
-            player.draw();
-
-            // Draw Debug Overlays
-            DrawLine(0, Config::World::GroundLineY, Config::Virtual::Width, Config::World::GroundLineY, RED);
-            frameRateMonitor.drawFrameRateText();
+            Hud::draw(world);
         }
 
         // -------------------------------------------------------------------------
@@ -97,13 +99,13 @@ int main(void)
         {
             const ScopedDrawing drawing;
             ClearBackground(BLACK);
-            
+
             DrawTexturePro(
-                target.getTexture(), 
-                Config::Viewport::SrcRect, 
-                Config::Viewport::DstRect, 
-                {}, 
-                0.0f, 
+                target.getTexture(),
+                Config::Viewport::SrcRect,
+                Config::Viewport::DstRect,
+                {},
+                0.0f,
                 WHITE
             );
         }

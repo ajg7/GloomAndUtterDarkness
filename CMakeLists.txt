@@ -36,6 +36,22 @@ if(APPLE)
         "-framework IOKit" "-framework Cocoa" "-framework OpenGL")
 endif()
 
+# Headless checks for the simulation. Links raylib for its types but never
+# opens a window, so it can run in a terminal or in CI.
+add_executable(${PROJECT_NAME}_tests tests/tests.cpp)
+target_include_directories(${PROJECT_NAME}_tests PRIVATE src)
+target_link_libraries(${PROJECT_NAME}_tests PRIVATE raylib)
+if(WIN32)
+    target_link_libraries(${PROJECT_NAME}_tests PRIVATE winmm)
+endif()
+if(APPLE)
+    target_link_libraries(${PROJECT_NAME}_tests PRIVATE
+        "-framework IOKit" "-framework Cocoa" "-framework OpenGL")
+endif()
+
+enable_testing()
+add_test(NAME simulation COMMAND ${PROJECT_NAME}_tests)
+
 # Make assets/ available beside the binary so relative load paths work.
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory

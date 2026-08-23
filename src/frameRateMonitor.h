@@ -23,16 +23,27 @@ public:
     static constexpr double SIM_HZ{60.0};
     static constexpr double SIM_DT{1.0 / SIM_HZ};
 
+    // Ceiling on how much simulation one frame may be asked to catch up on.
+    // Without it a single long stall (a breakpoint, a window drag) hands back a
+    // huge step count, that frame takes even longer, and the accumulator never
+    // drains again.
+    static constexpr int MAX_STEPS_PER_FRAME{8};
+
     // Accumulates delta time and returns how many fixed-size simulation steps
     // the caller should run this frame (0, 1, or several, depending on framerate).
     int update(const double deltaTime) noexcept {
         m_accumulator += deltaTime;
         int steps = 0;
-        while (m_accumulator >= SIM_DT) {
+        while (m_accumulator >= SIM_DT && steps < MAX_STEPS_PER_FRAME) {
             ++steps;
             ++m_simTicks;
             m_accumulator -= SIM_DT;
         }
+
+        // Anything still owed after the ceiling is dropped, not banked - the
+        // simulation runs slow for one frame rather than spiralling.
+        if (m_accumulator >= SIM_DT) m_accumulator = 0.0;
+
         ++m_renderFrames;
         return steps;
     }

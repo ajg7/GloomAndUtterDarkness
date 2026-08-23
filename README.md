@@ -8,6 +8,35 @@
 
 A single binary that opens a window, draws your post-apocalyptic subway platform in parallax layers, and drops you in as a scientist with a rifle while zombies pour in from both edges. Waves get bigger and meaner on a curve you wrote. You run out of ammo, you reload, you get cornered, you die, you see how far you got, and you press a key and go again — with the second run being bit-for-bit identical in difficulty to the first.
 
+## Status
+
+All four phases are implemented and the MVP criteria below are met. `tests/tests.cpp` is a
+headless harness that checks the parts you cannot verify by looking at the screen: handle
+staleness under churn, the swept test's degenerate cases, the player's legal transitions,
+the wave curve, and both reproducibility claims.
+
+```
+./build.ps1               # build
+./build.ps1 -Run          # build and play
+cd build && ctest         # run the simulation checks
+```
+
+**Controls:** arrows or A/D to move, Space to fire, R to reload, Enter to restart after death.
+**Debug:** F1 toggles collision shapes and counters, F2 drops 200 more zombies in, F3 cycles
+the framerate cap through 60 / 20 / 300 / uncapped.
+
+Two things worth revisiting, both judgement calls rather than defects:
+
+- **The ground line at y=131** puts the cast at the height of the train wreck's roof rather
+  than on the platform floor at roughly y=205. Everything is measured off `Config::World::GroundLineY`,
+  so moving it is a one-constant change - but it is your Phase 1 composition call, so it was left alone.
+- **The crawler uses `wild/run.png`, not `wild/walk.png`.** Its walk pose is so low to the ground
+  that a rifle shot on the flat firing line passes clean over its head; the run pose is upright
+  enough to hit. There is a check in the harness that fails if any type ever falls out of the
+  firing line across the whole depth band.
+
+---
+
 ## Architecture decisions
 
 - **Fixed timestep with an accumulator** _(recommendation, taken)_ — variable frame deltas mean objects move different distances on a stutter, which silently corrupts every collision test you write.
