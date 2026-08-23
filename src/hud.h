@@ -1,6 +1,9 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstddef>
 #include <format>
 #include <string>
 
@@ -20,6 +23,8 @@ constexpr Color Panel{12, 16, 14, 170};
 constexpr Color Good{120, 220, 140, 255};
 constexpr Color Warn{240, 190, 90, 255};
 constexpr Color Bad{226, 92, 82, 255};
+constexpr Color Verse{136, 144, 139, 255};    // ash, for the passage
+constexpr Color VerseLit{214, 222, 216, 255}; // the line the game is named from
 
 inline void bar(const int x, const int y, const int width, const int height,
                 const float fill, const Color colour) {
@@ -40,7 +45,117 @@ inline void textCentred(const std::string& text, const int y, const int size, co
     DrawText(text.c_str(), (Config::Virtual::Width - width) / 2, y, size, colour);
 }
 
+// Centred text with explicit letter spacing.
+//
+// There is no TTF to bundle and a smooth outline font would sit badly against
+// 480x270 pixel art, so the epitaph gets its own voice from the built-in font by
+// opening the tracking right up. Wide-tracked small caps read as inscription
+// rather than as UI, which is the whole point of the screen.
+inline void textCentredSpaced(const std::string& text, const float y, const float size,
+                              const float spacing, const Color colour) {
+    const Font font = GetFontDefault();
+    const Vector2 measured = MeasureTextEx(font, text.c_str(), size, spacing);
+    DrawTextEx(font, text.c_str(),
+               Vector2{std::round((Config::Virtual::WidthF - measured.x) * 0.5f), std::round(y)},
+               size, spacing, colour);
+}
+
 } // namespace Detail
+
+// ---------------------------------------------------------------------------
+// Job 10:20-22, New International Version - the passage the game is named from.
+//
+// Pre-wrapped rather than measured and reflowed at runtime, so the line breaks
+// land where they should: verse 21 ends on the title phrase, alone on its line.
+// ---------------------------------------------------------------------------
+namespace Epitaph {
+
+constexpr std::array<const char*, 7> Lines{
+    "Are not my few days almost over?",
+    "Turn away from me so I can have a moment's joy",
+    "before I go to the place of no return,",
+    "to the land of gloom and utter darkness,",
+    "to the land of deepest night,",
+    "of utter darkness and disorder,",
+    "where even the light is like darkness."
+};
+
+// The line the game takes its name from, lit a shade brighter than the rest.
+constexpr std::size_t TitleLine{3};
+
+constexpr const char* Attribution{"JOB 10:20-22 (NIV)"};
+
+// Longest line the layout can take before it runs into the margins. Guarded by
+// the test harness so editing the passage cannot silently overflow the screen.
+constexpr std::size_t MaxLineLength{48};
+
+constexpr double StartDelay{1.1};       // a beat after YOU DIED lands
+constexpr double CharactersPerSecond{42.0};
+constexpr float LineHeight{13.0f};
+constexpr float TopY{92.0f};
+constexpr float Size{10.0f};
+constexpr float Spacing{2.0f};
+
+} // namespace Epitaph
+
+inline void drawGameOver(const World& world) {
+    using namespace Detail;
+
+    DrawRectangle(0, 0, Config::Virtual::Width, Config::Virtual::Height, Color{5, 7, 6, 216});
+
+    const WaveDirector& wave = world.wave();
+
+    textCentredSpaced("YOU DIED", 30.0f, 20.0f, 4.0f, Bad);
+    DrawRectangle(160, 58, 160, 1, Color{52, 58, 54, 255});
+
+    textCentredSpaced(std::format("REACHED WAVE {}", std::max(1, wave.wave())), 66.0f, 10.0f, 2.0f, Ink);
+    textCentredSpaced(std::format("{} ZOMBIES KILLED", world.kills()), 78.0f, 10.0f, 2.0f, Dim);
+
+    // The passage writes itself on a character at a time. Each line is centred
+    // on its *finished* width, so the text grows rightward from a fixed left
+    // edge instead of sliding around as it types.
+    const Font font = GetFontDefault();
+    double budget = (world.gameOverElapsed() - Epitaph::StartDelay) * Epitaph::CharactersPerSecond;
+    bool complete = true;
+
+    for (std::size_t i = 0; i < Epitaph::Lines.size(); ++i) {
+        if (budget <= 0.0) {
+            complete = false;
+            break;
+        }
+
+        const std::string full{Epitaph::Lines[i]};
+        const auto shown = static_cast<std::size_t>(
+            std::min(budget, static_cast<double>(full.size())));
+        const std::string visible = full.substr(0, shown);
+
+        const float y = Epitaph::TopY + Epitaph::LineHeight * static_cast<float>(i);
+        const Vector2 fullSize = MeasureTextEx(font, full.c_str(), Epitaph::Size, Epitaph::Spacing);
+        const float x = std::round((Config::Virtual::WidthF - fullSize.x) * 0.5f);
+
+        const Color colour = (i == Epitaph::TitleLine) ? VerseLit : Verse;
+        DrawTextEx(font, visible.c_str(), Vector2{x, y}, Epitaph::Size, Epitaph::Spacing, colour);
+
+        if (shown < full.size()) {
+            const Vector2 visibleSize =
+                MeasureTextEx(font, visible.c_str(), Epitaph::Size, Epitaph::Spacing);
+            DrawRectangle(static_cast<int>(x + visibleSize.x), static_cast<int>(y) + 1, 4, 8, VerseLit);
+            complete = false;
+            break;
+        }
+
+        budget -= static_cast<double>(full.size());
+    }
+
+    if (!complete) return;
+
+    textCentredSpaced(Epitaph::Attribution, 196.0f, 10.0f, 1.0f, Color{78, 86, 81, 255});
+
+    // Restart is accepted from the moment you die - this is only the prompt.
+    if (static_cast<int>(world.gameOverElapsed() * 1.6) % 2 == 0) {
+        textCentredSpaced("PRESS ENTER TO RESTART", 230.0f, 10.0f, 2.0f, Dim);
+    }
+}
 
 inline void draw(const World& world) {
     using namespace Detail;
@@ -85,13 +200,7 @@ inline void draw(const World& world) {
         textCentred(std::format("WAVE {}", wave.wave()), 44, 20, Ink);
     }
 
-    if (world.state() == GameState::GameOver) {
-        DrawRectangle(0, 0, Config::Virtual::Width, Config::Virtual::Height, Color{6, 8, 7, 190});
-        textCentred("YOU DIED", 88, 20, Bad);
-        textCentred(std::format("REACHED WAVE {}", std::max(1, wave.wave())), 118, 10, Ink);
-        textCentred(std::format("{} ZOMBIES KILLED", world.kills()), 132, 10, Ink);
-        textCentred("PRESS ENTER TO RESTART", 156, 10, Dim);
-    }
+    if (world.state() == GameState::GameOver) drawGameOver(world);
 }
 
 // Controls and counters, toggled with F1.

@@ -43,6 +43,7 @@ public:
         m_activeZombies = 0;
         m_deathLinger = DeathLingerDuration;
         m_lastWaveBanner = 0.0;
+        m_gameOverElapsed = 0.0;
     }
 
     [[nodiscard]] GameState state() const { return m_state; }
@@ -53,9 +54,14 @@ public:
     [[nodiscard]] std::size_t liveZombieSlots() const { return m_zombies.size(); }
     [[nodiscard]] std::size_t liveBullets() const { return m_bullets.size(); }
     [[nodiscard]] double waveBannerRemaining() const { return m_lastWaveBanner; }
+    [[nodiscard]] double gameOverElapsed() const { return m_gameOverElapsed; }
 
     void step(const Input& input, const double simDt) {
         if (m_state == GameState::GameOver) {
+            // Kept ticking while the simulation is frozen: the epitaph writes
+            // itself on over a few seconds, and it needs a clock that is still
+            // running. Cosmetic only, so it stays out of stateSignature().
+            m_gameOverElapsed += simDt;
             if (input.restart) reset();
             return;
         }
@@ -481,6 +487,7 @@ private:
     int m_activeZombies{0};
     double m_deathLinger{DeathLingerDuration};
     double m_lastWaveBanner{0.0};
+    double m_gameOverElapsed{0.0};
 
     std::array<PendingHit, Config::Gameplay::MaxBullets> m_pendingHits{};
     std::size_t m_pendingHitCount{0};

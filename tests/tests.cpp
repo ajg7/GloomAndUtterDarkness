@@ -8,12 +8,14 @@
 
 #include <chrono>
 #include <cmath>
+#include <cstring>
 #include <cstdint>
 #include <cstdio>
 #include <string>
 #include <vector>
 
 #include "collision.h"
+#include "hud.h"
 #include "frameRateMonitor.h"
 #include "input.h"
 #include "player.h"
@@ -140,12 +142,17 @@ void testSweptAABB() {
 void testNoTunnelingInWorld() {
     section("No tunneling at any bullet speed");
 
+    // Derived, never hardcoded: the firing line moves with the ground line, and
+    // a literal here would quietly start testing empty air the moment the scene
+    // is recomposed.
+    const float muzzleY = Player::FrameY + Config::Assets::Scientist::MuzzleOffsetY;
+
     for (const float speed : {300.0f, 2000.0f, 20000.0f, 200000.0f}) {
         Zombie zombie = Zombie::spawned(Config::Zombies::Type::Man, 240.0f, 0.0f, true);
         const Rectangle expanded =
             Collision::expand(zombie.body(), Bullet::HalfWidth, Bullet::HalfHeight);
 
-        Bullet bullet = Bullet::fired(Vector2{20.0f, 79.0f}, Vector2{speed, 0.0f});
+        Bullet bullet = Bullet::fired(Vector2{20.0f, muzzleY}, Vector2{speed, 0.0f});
         bool hit = false;
         for (int step = 0; step < 600 && !hit; ++step) {
             bullet.update(FrameRateMonitor::SIM_DT);
@@ -454,6 +461,37 @@ void testCrowdCost() {
           "a 500-strong crowd steps faster than real time");
 }
 
+void testEpitaphFits() {
+    section("The epitaph fits the screen");
+
+    for (std::size_t i = 0; i < Hud::Epitaph::Lines.size(); ++i) {
+        check(std::strlen(Hud::Epitaph::Lines[i]) <= Hud::Epitaph::MaxLineLength,
+              "verse line " + std::to_string(i) + " fits the arena width");
+    }
+    check(std::strlen(Hud::Epitaph::Attribution) <= Hud::Epitaph::MaxLineLength,
+          "the attribution fits");
+
+    // The block must clear the attribution beneath it and the restart prompt
+    // below that, inside 270 virtual pixels.
+    const float bottom = Hud::Epitaph::TopY
+                       + Hud::Epitaph::LineHeight * static_cast<float>(Hud::Epitaph::Lines.size());
+    check(bottom < 196.0f, "the passage clears the attribution line");
+    check(196.0f < 230.0f && 230.0f + Hud::Epitaph::Size < Config::Virtual::HeightF,
+          "the restart prompt stays on screen");
+
+    check(Hud::Epitaph::TitleLine < Hud::Epitaph::Lines.size(), "the highlighted line exists");
+    check(std::string{Hud::Epitaph::Lines[Hud::Epitaph::TitleLine]}.find("gloom and utter darkness")
+              != std::string::npos,
+          "the highlighted line is the one the game is named from");
+
+    // The whole passage must finish writing itself on in a reasonable time.
+    std::size_t characters = 0;
+    for (const char* line : Hud::Epitaph::Lines) characters += std::strlen(line);
+    const double writeSeconds = Hud::Epitaph::StartDelay
+                              + static_cast<double>(characters) / Hud::Epitaph::CharactersPerSecond;
+    check(writeSeconds < 10.0, "the passage finishes in " + std::to_string(writeSeconds) + "s");
+}
+
 void testWorldPlaysThrough() {
     section("A run reaches later waves and ends");
 
@@ -505,6 +543,7 @@ int main() {
     testCrowdSeparation();
     testPickupSweepThreshold();
     testCrowdCost();
+    testEpitaphFits();
     testWorldPlaysThrough();
 
     std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
