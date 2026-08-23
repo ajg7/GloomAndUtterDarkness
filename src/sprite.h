@@ -10,7 +10,7 @@ namespace Sprite {
 inline Rectangle frameRect(const AnimClip& clip, const AnimState& state, const bool flipX) {
     const float w = static_cast<float>(clip.frameWidth);
     return Rectangle{
-        flipX ? w * static_cast<float>(state.frameIndex + 1) : w * static_cast<float>(state.frameIndex),
+        flipX ? w * static_cast<float>(state.frameIndex) : w * static_cast<float>(state.frameIndex),
         0.0f,
         flipX ? -w : w,
         static_cast<float>(clip.frameHeight)
