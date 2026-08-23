@@ -30,7 +30,7 @@ namespace Config::Virtual {
 
 // Global world layout measurements within the virtual coordinate space
 namespace Config::World {
-    constexpr int GroundLineY{131};
+    constexpr int GroundLineY{205};
     constexpr float GroundLineYF{static_cast<float>(GroundLineY)};
 
     // Horizontal limits for the player's *body*, not its sprite frame. The
