@@ -124,6 +124,11 @@ namespace Config::Assets::Scientist {
     constexpr float MuzzleOffsetY{76.0f};  // from the top of the frame, barrel centre
 }
 
+namespace Config::Assets::Audio {
+    inline constexpr const char* Track{"assets/carousel-of-nightmares.mp3"};
+    constexpr float Volume{0.5f};
+}
+
 namespace Config::Player {
     constexpr int MaxHealth{100};
     constexpr double InvulnerabilityDuration{0.9};

@@ -8,8 +8,10 @@
 #include "frameRateMonitor.h"
 #include "hud.h"
 #include "input.h"
+#include "scopedAudioDevice.h"
 #include "scopedDrawing.h"
 #include "scopedLayers.h"
+#include "scopedMusic.h"
 #include "scopedRenderTexture.h"
 #include "scopedTextureMode.h"
 #include "scopedWindow.h"
@@ -29,6 +31,12 @@ int main(void)
     const ScopedWindow window{Config::Window::Width, Config::Window::Height, "Gloom and Utter Darkness"};
     SetTargetFPS(Config::Window::TargetFPS);
     SetExitKey(KEY_ESCAPE);
+
+    // Audio. The device is declared first so it outlives the stream.
+    const ScopedAudioDevice audioDevice{};
+    const ScopedMusic music{Config::Assets::Audio::Track};
+    SetMusicVolume(music, Config::Assets::Audio::Volume);
+    PlayMusicStream(music);
 
     // Virtual Canvas
     const ScopedRenderTexture target{Config::Virtual::Width, Config::Virtual::Height};
@@ -50,6 +58,9 @@ int main(void)
     // Game Loop
     while (not WindowShouldClose())
     {
+        // Frame-rate work, not simulation work.
+        UpdateMusicStream(music);
+
         input.pollFrame();
 
         if (IsKeyPressed(KEY_F1)) debugOverlay = !debugOverlay;
