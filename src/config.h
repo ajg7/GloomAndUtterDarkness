@@ -165,6 +165,9 @@ namespace Config::Pickups {
     constexpr int HealAmount{25};
     constexpr double Lifetime{9.0};
     constexpr double BlinkBelow{2.5}; // starts flashing with this long left
+    // Bad-luck protection: this many kills in a row without a drop and the next
+    // kill drops one regardless of type or wave.
+    constexpr int PityKills{14};
 }
 
 // ---------------------------------------------------------------------------

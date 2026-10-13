@@ -41,6 +41,7 @@ public:
         m_state = GameState::Playing;
         m_kills = 0;
         m_activeZombies = 0;
+        m_killsSinceDrop = 0;
         m_deathLinger = DeathLingerDuration;
         m_lastWaveBanner = 0.0;
         m_gameOverElapsed = 0.0;
@@ -153,6 +154,7 @@ public:
         mix(static_cast<std::uint64_t>(m_player.state));
         mixFloat(m_player.position.x);
         mix(m_rng.state);
+        mix(static_cast<std::uint64_t>(m_killsSinceDrop));
 
         for (std::size_t slot = 0; slot < m_zombies.capacity; ++slot) {
             if (!m_zombies.alive(slot)) continue;
@@ -443,7 +445,10 @@ private:
     }
 
     void maybeDropPickup(const Zombie& zombie) {
-        if (!m_rng.chance(zombie.stats().dropChance)) return;
+        // Always roll, so the RNG stream does not depend on the pity counter.
+        const bool rolled = m_rng.chance(zombie.stats().dropChance);
+        if (!rolled && ++m_killsSinceDrop < Config::Pickups::PityKills) return;
+        m_killsSinceDrop = 0;
 
         const Rectangle box = zombie.body();
         (void)m_pickups.spawn(Pickup::dropped(
@@ -485,6 +490,7 @@ private:
     GameState m_state{GameState::Playing};
     int m_kills{0};
     int m_activeZombies{0};
+    int m_killsSinceDrop{0};
     double m_deathLinger{DeathLingerDuration};
     double m_lastWaveBanner{0.0};
     double m_gameOverElapsed{0.0};
