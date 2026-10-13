@@ -1,7 +1,5 @@
 #pragma once
 
-#include "raylib.h"
-
 // Input as the simulation sees it: held states plus one-shot presses.
 struct Input {
     bool moveLeft{false};
@@ -22,25 +20,11 @@ struct Input {
 class InputLatch {
 public:
     // Once per render frame.
-    void pollFrame() {
-        m_held.moveLeft  = IsKeyDown(KEY_LEFT)  || IsKeyDown(KEY_A);
-        m_held.moveRight = IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D);
-        m_held.fireHeld  = IsKeyDown(KEY_SPACE);
-
-        m_reloadQueued  = m_reloadQueued  || IsKeyPressed(KEY_R);
-        m_restartQueued = m_restartQueued || IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_KP_ENTER);
-    }
+    void pollFrame();
 
     // Once per simulation step. The first step of a frame sees the queued
     // presses; the rest of that frame's steps do not.
-    Input takeStep() {
-        Input step = m_held;
-        step.reload = m_reloadQueued;
-        step.restart = m_restartQueued;
-        m_reloadQueued = false;
-        m_restartQueued = false;
-        return step;
-    }
+    Input takeStep();
 
 private:
     Input m_held{};

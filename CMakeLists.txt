@@ -23,31 +23,38 @@ if(NOT raylib_FOUND)
     FetchContent_MakeAvailable(raylib)
 endif()
 
-add_executable(${PROJECT_NAME} src/main.cpp)
-target_link_libraries(${PROJECT_NAME} PRIVATE raylib)
+# Everything except main(), compiled once and shared by the game and the tests.
+# New .cpp files go in this list.
+add_library(${PROJECT_NAME}_core STATIC
+    src/assets.cpp
+    src/frameRateMonitor.cpp
+    src/hud.cpp
+    src/input.cpp
+    src/player.cpp
+    src/wave.cpp
+    src/world.cpp
+    src/zombie.cpp
+)
+target_include_directories(${PROJECT_NAME}_core PUBLIC src)
+target_link_libraries(${PROJECT_NAME}_core PUBLIC raylib)
 
 if(WIN32)
     # raylib uses the multimedia timer and winsock symbols on Windows.
-    target_link_libraries(${PROJECT_NAME} PRIVATE winmm)
+    target_link_libraries(${PROJECT_NAME}_core PUBLIC winmm)
 endif()
 
 if(APPLE)
-    target_link_libraries(${PROJECT_NAME} PRIVATE
+    target_link_libraries(${PROJECT_NAME}_core PUBLIC
         "-framework IOKit" "-framework Cocoa" "-framework OpenGL")
 endif()
+
+add_executable(${PROJECT_NAME} src/main.cpp)
+target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_NAME}_core)
 
 # Headless checks for the simulation. Links raylib for its types but never
 # opens a window, so it can run in a terminal or in CI.
 add_executable(${PROJECT_NAME}_tests tests/tests.cpp)
-target_include_directories(${PROJECT_NAME}_tests PRIVATE src)
-target_link_libraries(${PROJECT_NAME}_tests PRIVATE raylib)
-if(WIN32)
-    target_link_libraries(${PROJECT_NAME}_tests PRIVATE winmm)
-endif()
-if(APPLE)
-    target_link_libraries(${PROJECT_NAME}_tests PRIVATE
-        "-framework IOKit" "-framework Cocoa" "-framework OpenGL")
-endif()
+target_link_libraries(${PROJECT_NAME}_tests PRIVATE ${PROJECT_NAME}_core)
 
 enable_testing()
 add_test(NAME simulation COMMAND ${PROJECT_NAME}_tests)

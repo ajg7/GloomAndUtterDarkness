@@ -1,8 +1,8 @@
 #pragma once
 
 #include <cstdint>
-#include <format>
-#include <raylib.h>
+
+#include "raylib.h"
 
 class FrameRateMonitor {
 public:
@@ -31,34 +31,13 @@ public:
 
     // Accumulates delta time and returns how many fixed-size simulation steps
     // the caller should run this frame (0, 1, or several, depending on framerate).
-    int update(const double deltaTime) noexcept {
-        m_accumulator += deltaTime;
-        int steps = 0;
-        while (m_accumulator >= SIM_DT && steps < MAX_STEPS_PER_FRAME) {
-            ++steps;
-            ++m_simTicks;
-            m_accumulator -= SIM_DT;
-        }
-
-        // Anything still owed after the ceiling is dropped, not banked - the
-        // simulation runs slow for one frame rather than spiralling.
-        if (m_accumulator >= SIM_DT) m_accumulator = 0.0;
-
-        ++m_renderFrames;
-        return steps;
-    }
+    int update(double deltaTime) noexcept;
 
     // Renders the current tick and frame stats to the screen
     void drawFrameRateText(
         Position position = {.x = 4, .y = 4},
         FontOptions font = {.fontSize = 10, .color = GREEN, .lineSpacing = 2}
-    ) const {
-        const auto simTicksText = std::format("sim ticks: {}", m_simTicks);
-        const auto renderFramesText = std::format("render frames: {}", m_renderFrames);
-
-        DrawText(simTicksText.c_str(), position.x, position.y, font.fontSize, font.color);
-        DrawText(renderFramesText.c_str(), position.x, position.y + font.fontSize + font.lineSpacing, font.fontSize, font.color);
-    }
+    ) const;
 
 private:
     double m_accumulator{0.0};       // Unprocessed time buffer awaiting the next sim tick

@@ -4,17 +4,12 @@
 #include "raylib.h"
 
 #include "assets.h"
+#include "backdrop.h"
 #include "config.h"
 #include "frameRateMonitor.h"
 #include "hud.h"
 #include "input.h"
-#include "scopedAudioDevice.h"
-#include "scopedDrawing.h"
-#include "scopedLayers.h"
-#include "scopedMusic.h"
-#include "scopedRenderTexture.h"
-#include "scopedTextureMode.h"
-#include "scopedWindow.h"
+#include "scoped.h"
 #include "world.h"
 
 namespace {
